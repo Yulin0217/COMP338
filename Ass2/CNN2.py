@@ -1,6 +1,5 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+
+from matplotlib import pyplot as plt
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from torch.optim import Adam
@@ -11,9 +10,9 @@ import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 
 
-class CustomCNN(nn.Module):
+class MiniVGGNet(nn.Module):
     def __init__(self, inputShape, classes):
-        super(CustomCNN, self).__init__()
+        super(MiniVGGNet, self).__init__()
 
         # Channel dimension
         chanDim = 1 if inputShape[0] == 1 else 3
@@ -96,20 +95,27 @@ test_loader = DataLoader(test_dataset, batch_size=1000, shuffle=False)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
-# 模型实例化
-input_shape = (1, 28, 28)  # Fashion MNIST 的图像形状
-num_classes = 10  # Fashion MNIST 的类别数
-model = CustomCNN(input_shape, num_classes).to(device)
+# Instantiate the model
+input_shape = (1, 28, 28)  # The image dimensions for the Fashion MNIST dataset
+num_classes = 10  # The number of classes in the Fashion MNIST dataset
+model = MiniVGGNet(input_shape, num_classes).to(device)  # Move the model to the appropriate device (CPU or GPU)
 
-# 损失函数和优化器
-criterion = nn.CrossEntropyLoss()
-optimizer = Adam(model.parameters(), lr=0.001)
+# Define the loss function and optimizer
+criterion = nn.CrossEntropyLoss()  # CrossEntropyLoss is commonly used for classification tasks
+optimizer = Adam(model.parameters(), lr=0.001)  # Adam optimizer with a learning rate of 0.001
+
 
 writer = SummaryWriter('Ass2/runs/fashion_mnist_experiment')
 
+# Initialize lists to store metrics
+train_accuracies = []  # List to store training accuracy per epoch
+test_accuracies = []   # List to store test accuracy per epoch
+train_losses = []      # List to store training loss per epoch
+test_losses = []       # List to store test loss per epoch
+
 # 训练循环
-epochs = 2
-for epoch in range(epochs):
+epochs = range(0,20)
+for epoch in epochs:
     model.train()
     train_loss = 0
     with tqdm(train_loader, unit="batch") as tepoch:
@@ -127,25 +133,33 @@ for epoch in range(epochs):
 
     # 在训练集上计算损失和准确率
     train_loss, train_accuracy = calculate_loss_and_accuracy(model, train_loader, criterion)
+    train_losses.append(train_loss)
+    train_accuracies.append(train_accuracy)
     print(f'End of Epoch {epoch + 1}, Training Loss: {train_loss:.4f}, Training Accuracy: {train_accuracy:.2f}%')
     # 记录到 TensorBoard
     writer.add_scalar('Training Loss', train_loss, epoch)
     writer.add_scalar('Training Accuracy', train_accuracy, epoch)
     # 在测试集上计算损失和准确率
     test_loss, test_accuracy = calculate_loss_and_accuracy(model, test_loader, criterion)
+    test_losses.append(test_loss)
+    test_accuracies.append(test_accuracy)
     print(f'End of Epoch {epoch + 1}, Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%')
     # 记录到 TensorBoard
     writer.add_scalar('Test Loss', test_loss, epoch)
     writer.add_scalar('Test Accuracy', test_accuracy, epoch)
 
 
-dummy_input = torch.zeros(1, *input_shape).to(device)  # 替换 *input_shape 为您的模型输入尺寸
+# Create a dummy input tensor that matches the model's input dimensions
+dummy_input = torch.zeros(1, *input_shape).to(device)
+
+# Add the model graph to TensorBoard
 writer.add_graph(model, dummy_input)
 
-# 关闭 SummaryWriter
+# Close the SummaryWriter
 writer.close()
 
-torch.save(model, 'Ass2/model/CNN2_model.pth')
+# Save the model to a file
+# torch.save(model, 'Ass2/model/CNN2_model.pth')
 
 
 # 最终测试集评估
@@ -170,5 +184,28 @@ print(
     f'Test set: Average loss: {test_loss:.4f}, Accuracy: {correct}/{len(test_loader.dataset)} ({100. * correct / len(test_loader.dataset):.2f}%)')
 
 
-for name, param in model.named_parameters():
-    print(f"{name}: {param}")
+# for name, param in model.named_parameters():
+#     print(f"{name}: {param}")
+
+
+# 绘制准确率对比图
+plt.figure(figsize=(10, 5))
+plt.plot(epochs, train_accuracies, 'bo-', label='Train Accuracy')
+plt.plot(epochs, test_accuracies, 'ro-', label='Test Accuracy')
+plt.title('Training and Test Accuracy')
+plt.xlabel('Epochs')
+plt.ylabel('Accuracy')
+plt.ylim(0, 1)
+plt.legend()
+plt.show()
+
+# 绘制损失对比图
+plt.figure(figsize=(10, 5))
+plt.plot(epochs, train_losses, 'bo-', label='Train Loss')
+plt.plot(epochs, test_losses, 'ro-', label='Test Loss')
+plt.title('Training and Test Loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.ylim(0, 1)
+plt.legend()
+plt.show()
